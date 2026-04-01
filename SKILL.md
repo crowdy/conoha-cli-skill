@@ -3,7 +3,9 @@ name: conoha-cli
 description: >
   ConoHa VPS3 CLIによるインフラ構築スキル。サーバー作成、アプリデプロイ、
   Kubernetesクラスター、OpenStackプラットフォーム、Slurmクラスターの構築を支援。
+  FigmaデザインからWebアプリを生成してデプロイすることも可能。
   「ConoHaでサーバーを作って」「k8sクラスターを構築して」「アプリをデプロイして」
+  「Figmaからデプロイ」「デザインからアプリを作って」
   などのリクエストでトリガー。
 ---
 
@@ -77,6 +79,7 @@ ConoHa VPS3 CLIを使ったインフラ構築ガイド。
 | Kubernetesクラスター | k3sによるマルチノードk8sクラスター | [recipes/k8s-cluster.md](recipes/k8s-cluster.md) |
 | OpenStackプラットフォーム | DevStackによるOpenStack環境 | [recipes/openstack-platform.md](recipes/openstack-platform.md) |
 | Slurmクラスター | HPCジョブスケジューラクラスター | [recipes/slurm-cluster.md](recipes/slurm-cluster.md) |
+| FigmaデザインからWebアプリ | FigmaデザインからReactコード生成・デプロイ | [recipes/figma-to-deploy.md](recipes/figma-to-deploy.md) |
 
 ## 共通パターン
 
