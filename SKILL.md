@@ -23,16 +23,20 @@ ConoHa VPS3 CLIを使ったインフラ構築ガイド。
 
 Windows（Windows Server 2019等）やCI/CD環境など、TTYが利用できない環境では対話的なプロンプトが動作しない。以下のルールに従うこと：
 
-1. **`--no-input` フラグを付与する** — すべてのコマンドにグローバルフラグ `--no-input` を付けることで、対話プロンプトを無効化できる
-2. **必須パラメータをすべてフラグで指定する** — 省略すると対話的選択が発生し `interactive selection requires a TTY` エラーになる
+1. **`--no-input` フラグを付与する** — すべてのコマンドにグローバルフラグ `--no-input` を付けることで、対話プロンプトを無効化できる。CI/CDパイプラインでは環境変数 `CONOHA_NO_INPUT=1` を設定する方が便利な場合がある
+2. **必須パラメータをすべてフラグで指定する** — 省略すると対話的プロンプトが発生しエラーになる（例: `interactive selection requires a TTY`）
 3. **`conoha server create` では `--flavor`、`--image`、`--key-name` を必ず指定する**
 4. **`conoha app` サブコマンドでは `--app-name` を必ず指定する** — 省略するとアプリ名の入力プロンプトが発生する
-5. **破壊的コマンド（delete、destroy、stop）は `--yes` フラグで確認をスキップする**
+5. **破壊的コマンド（server delete、app destroy、app stop等）は `--yes` フラグで確認をスキップする**（環境変数: `CONOHA_YES=1`）
 
 ```bash
 # 非TTY環境での例
 conoha server create --name my-server --flavor <ID> --image <ID> --key-name <キー名> --no-input --wait
 conoha app deploy my-server --app-name myapp --no-input
+
+# CI/CDパイプラインでは環境変数でまとめて設定可能
+export CONOHA_NO_INPUT=1
+export CONOHA_YES=1
 ```
 
 ## 基本操作
@@ -77,12 +81,12 @@ conoha app deploy my-server --app-name myapp --no-input
 
 | コマンド | 説明 |
 |---------|------|
-| `conoha app init <ID\|名前>` | サーバーにDocker環境を初期化する |
-| `conoha app deploy <ID\|名前>` | カレントディレクトリをサーバーにデプロイする |
-| `conoha app status <ID\|名前>` | アプリのコンテナ状態を表示する |
-| `conoha app logs <ID\|名前> --follow` | アプリのログをストリーミング表示する |
-| `conoha app stop <ID\|名前>` | アプリのコンテナを停止する |
-| `conoha app restart <ID\|名前>` | アプリのコンテナを再起動する |
+| `conoha app init <ID\|名前> --app-name <アプリ名>` | サーバーにDocker環境を初期化する |
+| `conoha app deploy <ID\|名前> --app-name <アプリ名>` | カレントディレクトリをサーバーにデプロイする |
+| `conoha app status <ID\|名前> --app-name <アプリ名>` | アプリのコンテナ状態を表示する |
+| `conoha app logs <ID\|名前> --app-name <アプリ名> --follow` | アプリのログをストリーミング表示する |
+| `conoha app stop <ID\|名前> --app-name <アプリ名>` | アプリのコンテナを停止する |
+| `conoha app restart <ID\|名前> --app-name <アプリ名>` | アプリのコンテナを再起動する |
 
 ## レシピ一覧
 
