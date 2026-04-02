@@ -49,8 +49,10 @@ conoha server create --name my-app-server --flavor <フレーバーID> --image <
 サーバーにDocker環境をセットアップする：
 
 ```bash
-conoha app init my-app-server
+conoha app init my-app-server --app-name myapp
 ```
+
+> **非TTY環境**: `--app-name` を省略するとアプリ名の入力プロンプトが発生する。Windows等の非TTY環境では必ず指定すること。
 
 これにより以下が実行される：
 - Docker/Docker Composeのインストール
@@ -61,7 +63,7 @@ conoha app init my-app-server
 カレントディレクトリ（`docker-compose.yml` があるディレクトリ）で実行する：
 
 ```bash
-conoha app deploy my-app-server
+conoha app deploy my-app-server --app-name myapp
 ```
 
 これにより以下が実行される：
@@ -75,10 +77,10 @@ conoha app deploy my-app-server
 
 ```bash
 # コンテナ状態を確認する
-conoha app status my-app-server
+conoha app status my-app-server --app-name myapp
 
 # ログを確認する
-conoha app logs my-app-server --follow
+conoha app logs my-app-server --app-name myapp --follow
 
 # 直接SSHでアクセスする場合
 ssh root@<サーバーIP> "curl -s localhost:<ポート>"
@@ -91,8 +93,8 @@ ssh root@<サーバーIP> "curl -s localhost:<ポート>"
 サーバー側に永続的な環境変数を設定する（デプロイを跨いで維持される）：
 
 ```bash
-conoha app env set my-app-server DATABASE_URL=postgres://...
-conoha app env list my-app-server
+conoha app env set my-app-server --app-name myapp DATABASE_URL=postgres://...
+conoha app env list my-app-server --app-name myapp
 ```
 
 または、ローカルに `.env.server` ファイルを作成してデプロイ時に自動コピーさせる。
@@ -101,13 +103,13 @@ conoha app env list my-app-server
 
 ```bash
 # 停止
-conoha app stop my-app-server
+conoha app stop my-app-server --app-name myapp
 
 # 再起動
-conoha app restart my-app-server
+conoha app restart my-app-server --app-name myapp
 
 # ログ（特定サービス）
-conoha app logs my-app-server --service web
+conoha app logs my-app-server --app-name myapp --service web
 ```
 
 ## トラブルシューティング
