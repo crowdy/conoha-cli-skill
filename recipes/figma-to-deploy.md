@@ -135,16 +135,18 @@ conoha server create --name my-figma-app --flavor <フレーバーID> --image <U
 Docker環境を初期化してデプロイする：
 
 ```bash
-conoha app init my-figma-app
-conoha app deploy my-figma-app
+conoha app init my-figma-app --app-name myapp
+conoha app deploy my-figma-app --app-name myapp
 ```
+
+> **非TTY環境**: `--app-name` を省略するとアプリ名の入力プロンプトが発生する。Windows等の非TTY環境では必ず指定すること。
 
 ### 6. 動作確認
 
 コンテナの状態を確認する：
 
 ```bash
-conoha app status my-figma-app
+conoha app status my-figma-app --app-name myapp
 ```
 
 ブラウザでサーバーIPにアクセスし、以下を確認する：
@@ -186,6 +188,6 @@ conoha dns record create --zone-id <ゾーンID> --name www --type A --data <サ
 |------|------|
 | Figma MCPに接続できない | APIトークンの有効性を確認する。`~/.claude/settings.json` のMCPサーバー設定を確認する |
 | `npm run build` が失敗する | Node.jsバージョンを確認する（LTS推奨）。依存パッケージの競合を `npm ls` で確認する |
-| デプロイ後にページが表示されない | `conoha app logs my-figma-app` でエラーを確認する |
+| デプロイ後にページが表示されない | `conoha app logs my-figma-app --app-name myapp` でエラーを確認する |
 | Nginx 404エラー | `nginx.conf` の `try_files` 設定を確認する。SPA対応が必要 |
 | セキュリティグループでブロック | ポート80（HTTP）が開放されているか確認する |

@@ -19,6 +19,22 @@ ConoHa VPS3 CLIを使ったインフラ構築ガイド。
 - `conoha auth login` で認証済みであること
 - SSHキーペアが登録済みであること（`conoha keypair create <name>`）
 
+## 非TTY環境（Windows等）での注意事項
+
+Windows（Windows Server 2019等）やCI/CD環境など、TTYが利用できない環境では対話的なプロンプトが動作しない。以下のルールに従うこと：
+
+1. **`--no-input` フラグを付与する** — すべてのコマンドにグローバルフラグ `--no-input` を付けることで、対話プロンプトを無効化できる
+2. **必須パラメータをすべてフラグで指定する** — 省略すると対話的選択が発生し `interactive selection requires a TTY` エラーになる
+3. **`conoha server create` では `--flavor`、`--image`、`--key-name` を必ず指定する**
+4. **`conoha app` サブコマンドでは `--app-name` を必ず指定する** — 省略するとアプリ名の入力プロンプトが発生する
+5. **破壊的コマンド（delete、destroy、stop）は `--yes` フラグで確認をスキップする**
+
+```bash
+# 非TTY環境での例
+conoha server create --name my-server --flavor <ID> --image <ID> --key-name <キー名> --no-input --wait
+conoha app deploy my-server --app-name myapp --no-input
+```
+
 ## 基本操作
 
 ### サーバー管理
@@ -27,7 +43,7 @@ ConoHa VPS3 CLIを使ったインフラ構築ガイド。
 |---------|------|
 | `conoha server list` | サーバー一覧を表示する |
 | `conoha server create --name <名前> --flavor <ID> --image <ID> --key-name <キー名>` | サーバーを作成する |
-| `conoha server create --name <名前> --wait` | サーバー作成完了まで待機する |
+| `conoha server create --name <名前> --flavor <ID> --image <ID> --key-name <キー名> --wait` | サーバー作成完了まで待機する |
 | `conoha server show <ID\|名前>` | サーバー詳細を表示する |
 | `conoha server delete <ID\|名前>` | サーバーを削除する |
 | `conoha server deploy <ID\|名前> --script <ファイル> --env KEY=VALUE` | スクリプトをSSH経由で実行する |
