@@ -90,7 +90,7 @@ export CONOHA_YES=1
 | コマンド | 説明 |
 |---------|------|
 | `conoha app init <server>` | proxy モードで初期化 (conoha.yml と `conoha proxy boot` 済み前提) |
-| `conoha app init <server> --app-name <app> --no-proxy` | no-proxy モードで初期化 (Docker / Compose のみインストール) |
+| `conoha app init <server> --app-name <app> --no-proxy` | no-proxy モードで初期化 (Docker / Compose が入っていることを検証。インストールはしない) |
 | `conoha app deploy <server>` | カレントディレクトリをデプロイ (モードはマーカーから自動判別) |
 | `conoha app deploy <server> --slot <id>` | slot ID を固定 (proxy モード) |
 | `conoha app rollback <server>` | 前 slot へ即時ロールバック (proxy モードのみ、drain 窓内) |
@@ -103,6 +103,8 @@ export CONOHA_YES=1
 | `conoha app list <server>` | サーバー上のデプロイ済みアプリ一覧 |
 | `conoha app env set <server> --app-name <app> KEY=VALUE` | サーバー側永続環境変数を設定 |
 | `conoha app env list/get/unset` | 環境変数の一覧・取得・削除 |
+
+> **注意**: `app env` はサーバー側 `/opt/conoha/<app>.env.server` に書き込むが、**現状その値が実際にコンテナに反映されるのは no-proxy モードのデプロイ時のみ**。proxy モードでは `warning: app env has no effect on proxy-mode deployed slots; see #94 for the redesign` が出る ([crowdy/conoha-cli#94](https://github.com/crowdy/conoha-cli/issues/94) 予定)。proxy モードの環境変数は当面 compose 側の `environment:` / `env_file:` で渡す。
 
 モード切り替えは `destroy` → 反対モードで `init`。同一 VPS で `<app-name>` が異なれば 2 モードを並列で共存可。
 
