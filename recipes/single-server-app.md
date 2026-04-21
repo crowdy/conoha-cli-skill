@@ -2,120 +2,190 @@
 
 ## 概要
 
-Docker Composeアプリをサーバー1台にデプロイするレシピ。`conoha app` コマンドを使用し、カレントディレクトリのDocker Composeプロジェクトをサーバーに転送・起動する。
+Docker Compose アプリをサーバー 1 台にデプロイするレシピ。`conoha app` コマンドでカレントディレクトリの Compose プロジェクトを転送・起動する。
 
-## 基本構成
+`conoha app` は 2 つのモードを提供するので、用途に応じて選ぶ:
 
-- **ノード数**: 1
-- **OS**: Ubuntu
-- **必須**: Docker Compose対応の `docker-compose.yml` がカレントディレクトリにあること
+| モード | いつ選ぶか | 事前準備 |
+|---|---|---|
+| **proxy (blue/green, 既定)** | ドメイン + HTTPS が必要、本番公開、無停止デプロイ | `conoha.yml`、`conoha proxy boot`、DNS A レコード |
+| **no-proxy (flat)** | テスト、社内ツール、非 HTTP サービス、ホビー用途 | `docker-compose.yml` だけ |
 
-```
-[ローカルPC] -- tar+SSH --> [ConoHa VPS]
-                             └── /opt/conoha/<app-name>/
-                                 ├── docker-compose.yml
-                                 ├── Dockerfile
-                                 ├── .env (← .env.server からコピー)
-                                 └── (ソースコード)
-```
+## 共通の前提
 
-## 手順
+- `conoha auth login` で認証済み
+- キーペアが登録済み (`conoha keypair create <name>`)
+- カレントディレクトリに `docker-compose.yml` (または `compose.yml`) がある
+- VPS に Docker が導入済みであること (`conoha app init --no-proxy` / `conoha proxy boot` の前段として必須)。未導入なら `conoha server create --user-data ./install-docker.sh` で createしたり、後から `conoha server deploy ... --script install-docker.sh` で投入する
+- 非 TTY 環境では `--no-input` / `--yes` / 必須フラグを明示 (SKILL.md 冒頭の注意を参照)
 
-### 1. 事前準備
-
-フレーバーとイメージを確認する：
+### サーバー作成 (両モード共通)
 
 ```bash
 conoha flavor list
 conoha image list
+conoha keypair create my-key    # 既存ならスキップ
+
+conoha server create \
+  --name my-app-server \
+  --flavor <フレーバーID> \
+  --image <UbuntuイメージID> \
+  --key-name my-key \
+  --wait
 ```
 
-キーペアが未作成の場合は作成する：
+`--wait` でサーバーが ACTIVE になるまで待つ。
 
-```bash
-conoha keypair create my-key
+---
+
+## モード A: proxy blue/green (推奨)
+
+### 1. `conoha.yml` をレポジトリルートに作成
+
+```yaml
+name: myapp
+hosts:
+  - app.example.com
+web:
+  service: web    # docker-compose.yml のサービス名と一致
+  port: 8080      # コンテナ側 listen ポート
+# 任意:
+# compose_file: docker-compose.yml
+# accessories: [db, redis]
+# health: { path: /healthz, interval_ms: 1000, timeout_ms: 500, healthy_threshold: 2, unhealthy_threshold: 3 }
+# deploy: { drain_ms: 5000 }
 ```
 
-### 2. サーバー作成
+スキーマ詳細は conoha-cli README を参照。
+
+### 2. DNS A レコードを VPS に向ける
+
+Let's Encrypt HTTP-01 検証に必要。ACME 発行前にポート 80 が到達できる状態にしておく。
+
+### 3. conoha-proxy をブート
 
 ```bash
-conoha server create --name my-app-server --flavor <フレーバーID> --image <UbuntuイメージID> --key-name my-key --wait
+conoha proxy boot my-app-server --acme-email ops@example.com
 ```
 
-`--wait` を付けてサーバーがACTIVEになるまで待機する。
-
-### 3. アプリ初期化
-
-サーバーにDocker環境をセットアップする：
+### 4. アプリを proxy に登録
 
 ```bash
-conoha app init my-app-server --app-name myapp
+conoha app init my-app-server
 ```
 
-> **非TTY環境**: `--app-name` を省略するとアプリ名の入力プロンプトが発生する。Windows等の非TTY環境では必ず指定すること。
+これで `.conoha-mode=proxy` のマーカーが書き込まれ、proxy に service が登録される。proxy モードではアプリ名は `conoha.yml` の `name:` フィールドから取得するので `--app-name` は不要 (指定しても無視される)。
 
-これにより以下が実行される：
-- Docker/Docker Composeのインストール
-- git bare リポジトリの作成（post-receive hook付き）
+### 5. デプロイ
 
-### 4. アプリデプロイ
-
-カレントディレクトリ（`docker-compose.yml` があるディレクトリ）で実行する：
+カレントディレクトリで実行:
 
 ```bash
-conoha app deploy my-app-server --app-name myapp
+conoha app deploy my-app-server
 ```
 
-これにより以下が実行される：
-- カレントディレクトリのtar.gzアーカイブ作成（`.git/` 除外）
-- SSH経由でアップロード
-- `/opt/conoha/<app-name>/` に展開
-- `.env.server` → `.env` コピー（存在する場合）
-- `docker compose up -d --build --remove-orphans` 実行
+実行内容:
+- カレントディレクトリを tar.gz アーカイブ化 (`.git/` 除外)
+- SSH で転送
+- `/opt/conoha/myapp/<slot>/` に展開 (slot は git short SHA または timestamp、`--slot <id>` で上書き可)
+- 新 slot を動的ポートで起動
+- proxy が health probe → 新 slot に swap
+- drain 窓経過後に旧 slot をテアダウン
 
-### 5. 動作確認
+### 6. 動作確認 / 管理
 
 ```bash
-# コンテナ状態を確認する
 conoha app status my-app-server --app-name myapp
-
-# ログを確認する
 conoha app logs my-app-server --app-name myapp --follow
-
-# 直接SSHでアクセスする場合
-ssh root@<サーバーIP> "curl -s localhost:<ポート>"
 ```
 
-## カスタマイズ
+ロールバック (drain 窓内のみ):
 
-### 環境変数
+```bash
+conoha app rollback my-app-server
+```
 
-サーバー側に永続的な環境変数を設定する（デプロイを跨いで維持される）：
+廃棄:
+
+```bash
+conoha app destroy my-app-server --app-name myapp --yes
+```
+
+---
+
+## モード B: no-proxy (flat)
+
+proxy / DNS / TLS が不要なとき。`docker-compose.yml` があれば動く最短経路。
+
+### 1. 初期化
+
+```bash
+conoha app init my-app-server --app-name myapp --no-proxy
+```
+
+これで `.conoha-mode=no-proxy` のマーカーが書き込まれる。`conoha app init --no-proxy` は Docker / Compose が入っていることを検証するだけで、インストールは行わない。Docker 未導入の VPS では `docker is not installed on ...` エラーで停止するので、事前に `conoha server create --user-data ./install-docker.sh` 等で導入しておくこと。
+
+### 2. デプロイ
+
+```bash
+conoha app deploy my-app-server --app-name myapp --no-proxy
+```
+
+実行内容:
+- カレントディレクトリを tar.gz アーカイブ化 (`.git/` 除外)
+- `/opt/conoha/myapp/` に展開 (フラット、slot なし)
+- サーバー側 `/opt/conoha/<app>.env.server` (`conoha app env set` で登録) があれば、リポジトリの `.env` に追記する形で合成
+- `docker compose up -d --build`
+
+### 3. 動作確認 / 管理
+
+以降のコマンドはマーカーから自動判別されるので `--no-proxy` の再指定は不要 (付けても動く):
+
+```bash
+conoha app status my-app-server --app-name myapp
+conoha app logs my-app-server --app-name myapp --follow
+conoha app logs my-app-server --app-name myapp --service web
+conoha app stop my-app-server --app-name myapp --yes
+conoha app restart my-app-server --app-name myapp
+conoha app destroy my-app-server --app-name myapp --yes
+```
+
+ポート公開は `docker-compose.yml` の `ports` セクションで直接行う。セキュリティグループで該当ポートを開放すること。
+
+no-proxy モードには blue/green swap が無いため `rollback` は使えない (実行すると `rollback is not supported in no-proxy mode` エラーが出る)。前のリビジョンに戻すには `git checkout <sha> && conoha app deploy --no-proxy --app-name myapp my-app-server` で再デプロイする。
+
+---
+
+## 環境変数
+
+サーバー側に永続する環境変数はデプロイを跨いで維持される。ただし **現状 `app env` の値の反映は no-proxy モードでのみ有効** で、proxy モードで `app env set` すると `warning: app env has no effect on proxy-mode deployed slots; see #94 for the redesign` が出る ([#94](https://github.com/crowdy/conoha-cli/issues/94) で再設計予定)。proxy モードでは当面 compose ファイルの `environment:` / `env_file:` を使う。
 
 ```bash
 conoha app env set my-app-server --app-name myapp DATABASE_URL=postgres://...
 conoha app env list my-app-server --app-name myapp
+conoha app env get my-app-server --app-name myapp DATABASE_URL
+conoha app env unset my-app-server --app-name myapp DATABASE_URL
 ```
 
-または、ローカルに `.env.server` ファイルを作成してデプロイ時に自動コピーさせる。
+デプロイ時の `.env` 合成 (no-proxy モード時のみ) は **リポジトリの `.env` → サーバー側の `/opt/conoha/<app>.env.server` を追記** の順で行われるため、`conoha app env set` で登録した値が後勝ちで上書きする (proxy モードではこの合成は行われない)。
 
-### アプリの管理
+## モード切り替え
+
+既存アプリのモードを変えるときは、一度破棄してから反対モードで再 init する:
 
 ```bash
-# 停止
-conoha app stop my-app-server --app-name myapp
-
-# 再起動
-conoha app restart my-app-server --app-name myapp
-
-# ログ（特定サービス）
-conoha app logs my-app-server --app-name myapp --service web
+conoha app destroy my-app-server --app-name myapp --yes
+conoha app init my-app-server --app-name myapp --no-proxy   # または --proxy (フラグ省略)
 ```
+
+同一 VPS 上で `<app-name>` が異なれば、proxy / no-proxy を並列に共存可能。
 
 ## トラブルシューティング
 
 | 問題 | 対処 |
 |------|------|
-| `docker compose up` が失敗する | `conoha app logs my-app-server` でエラーを確認する |
-| ポートにアクセスできない | セキュリティグループで該当ポートが開放されているか確認する |
-| デプロイが遅い | `.dockerignore` でnode_modules等を除外する |
+| `mode conflict` エラー | `--proxy` / `--no-proxy` フラグが既存マーカーと不一致。上記「モード切り替え」を参照 |
+| `docker compose up` が失敗 | `conoha app logs` でエラー確認 |
+| ポートにアクセス不可 (no-proxy) | セキュリティグループで `docker-compose.yml` の `ports` が開放されているか確認 |
+| Let's Encrypt 発行失敗 (proxy) | DNS A レコードが VPS を指しているか、ポート 80 が到達可能かを確認 |
+| デプロイが遅い | `.dockerignore` で `node_modules` 等を除外 |
