@@ -134,7 +134,7 @@ conoha app deploy my-app-server --app-name myapp --no-proxy
 - カレントディレクトリを tar.gz アーカイブ化 (`.git/` 除外)
 - `/opt/conoha/myapp/` に展開 (フラット、slot なし)
 - サーバー側 `/opt/conoha/<app>.env.server` (`conoha app env set` で登録) があれば、リポジトリの `.env` に追記する形で合成
-- `docker compose up -d --build --remove-orphans`
+- `docker compose up -d --build`
 
 ### 3. 動作確認 / 管理
 
@@ -145,7 +145,7 @@ conoha app status my-app-server --app-name myapp
 conoha app logs my-app-server --app-name myapp --follow
 conoha app logs my-app-server --app-name myapp --service web
 conoha app stop my-app-server --app-name myapp --yes
-conoha app restart my-app-server --app-name myapp --yes
+conoha app restart my-app-server --app-name myapp
 conoha app destroy my-app-server --app-name myapp --yes
 ```
 
