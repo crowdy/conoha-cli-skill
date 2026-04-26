@@ -88,12 +88,9 @@ echo "$SRV_ID" > /tmp/rc-smoke-srv-id
 IP=$(conoha server show "$SRV_ID" --format json \
   | python3 -c "import json,sys; d=json.load(sys.stdin); print([a['addr'] for v in d['addresses'].values() for a in v if a['version']==4][0])")
 echo "$IP" > /tmp/rc-smoke-ip
-
-# server create のログに 'volume <uuid>' の形で出ているのを抜く
-grep -oE 'volume [0-9a-f-]{36}' /tmp/rc-smoke-create.json | head -1 | awk '{print $2}' > /tmp/rc-smoke-vol
 ```
 
-ボリュームはサーバーと別管理なので **必ず ID を保存**。teardown で `volume delete` し忘れると ¥3/h で課金が継続する。
+ボリューム ID を別途保存する必要は無い — `server delete --delete-boot-volume` が attached なボリュームを自動列挙して削除する (teardown 節参照)。
 
 ### 3. cloud-init 完了を待つ
 
@@ -247,28 +244,24 @@ gh issue create --repo crowdy/conoha-cli \
 
 ## Teardown — 残骸ゼロ確認まで
 
-`destroy` → `proxy remove --purge` → `server delete` → ボリュームの detach 待ち → `volume delete` → DNS レコード削除 (sslip 利用なら不要) → ローカルディレクトリ削除。
+`destroy` → `proxy remove --purge` → `server delete --delete-boot-volume --wait` → DNS レコード削除 (sslip 利用なら不要) → ローカルディレクトリ削除。
+
+`server delete --delete-boot-volume` は server 削除 → volume の `detaching` → `available` 遷移待ち → `volume delete` を 1 コマンドで実行する (closed #88 / commit `54db033`)。`--wait` は `--delete-boot-volume` 指定時に自動有効化されるので明示しなくても動くが、明示する方が意図が明確。
 
 ```bash
 SRV_ID=$(cat /tmp/rc-smoke-srv-id)
-VOL=$(cat /tmp/rc-smoke-vol)
 
 cd "$RC_DIR"
 conoha app destroy --yes --no-input --insecure -i ~/.ssh/conoha_<keyname> "$SRV_NAME"
 conoha proxy remove --purge --insecure -i ~/.ssh/conoha_<keyname> "$SRV_NAME"
-conoha server delete --yes "$SRV_ID"
-
-# server delete は async — volume が detach するまで 30–90 秒かかる。retry で確定させる
-for i in $(seq 1 6); do
-  sleep 15
-  conoha volume show "$VOL" --format json 2>/dev/null \
-    | jq -e '.status == "available"' >/dev/null && break
-done
-conoha volume delete --yes "$VOL"
+conoha server delete --yes --delete-boot-volume --wait "$SRV_ID"
 
 # 残骸が無いことを確認 (これを怠ると課金継続 / dangling リソースが累積する)
+# server delete --delete-boot-volume が成功していれば両方とも 0 件のはず。
+# 0 件でない場合は --wait のタイムアウトに引っかかったか、別 namespace に
+# 残ったボリュームが存在する可能性。手動で確認する。
 conoha server list --format json | jq -e --arg id "$SRV_ID" '[.[] | select(.id == $id)] | length == 0' || echo "FAIL: server still listed"
-conoha volume list --format json | jq -e --arg id "$VOL" '[.[] | select(.id == $id)] | length == 0'  || echo "FAIL: volume still listed"
+conoha volume list --format json | jq -e --arg name "$SRV_NAME" '[.[] | select(.name | startswith($name))] | length == 0' || echo "FAIL: smoke volume(s) still listed"
 
 cd / && rm -rf "$RC_DIR" /tmp/rc-smoke-*
 ```
