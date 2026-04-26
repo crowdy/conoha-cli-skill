@@ -124,6 +124,17 @@ export CONOHA_YES=1
 | OpenStackプラットフォーム | DevStackによるOpenStack環境 | [recipes/openstack-platform.md](recipes/openstack-platform.md) |
 | Slurmクラスター | HPCジョブスケジューラクラスター | [recipes/slurm-cluster.md](recipes/slurm-cluster.md) |
 | FigmaデザインからWebアプリ | FigmaデザインからReactコード生成・デプロイ | [recipes/figma-to-deploy.md](recipes/figma-to-deploy.md) |
+| リリーススモーク | post-merge / pre-tag の e2e 検証 (実 VPS) | [recipes/release-smoke.md](recipes/release-smoke.md) |
+
+## イメージ別 known-issues
+
+ConoHa の各イメージには CLI が知っておくべきデフォルト挙動の差がある。同じコマンドでもイメージ次第で挙動が変わるので、選んだ image_id ごとに以下を確認する。
+
+| イメージ | 注意点 | 影響 |
+|---|---|---|
+| `vmi-docker-29.2-ubuntu-24.04-amd64` | UFW が `policy DROP` で SSH のみ allow / kernel default `net.ipv4.ip_unprivileged_port_start=1024` | `proxy boot` が `bind: permission denied` で crash-loop / 外部から 80,443 が unreachable。CLI v0.6.x 以降は BootScript が両方を自動修正するが、旧版や独自イメージでは手動対応が必要 |
+
+新しいイメージで動作させる時は最初に **ad-hoc な実 VPS スモーク** で UFW / sysctl / TOFU のクラスを確認すること。スモーク手順は [recipes/release-smoke.md](recipes/release-smoke.md) に codify されている。
 
 ## 共通パターン
 
