@@ -121,7 +121,8 @@ echo "DevStack installation complete"
 
 ```bash
 HOST_IP=$(conoha server show openstack-aio -o json | jq -r '.addresses | to_entries[0].value[] | select(.version == 4) | .addr')
-conoha server deploy openstack-aio --script openstack-setup.sh --env ADMIN_PASSWORD=SecurePass123 --env HOST_IP=$HOST_IP
+ADMIN_PASSWORD=$(openssl rand -base64 24)  # 強いランダム値を生成。ログには絶対に残さない
+conoha server deploy openstack-aio --script openstack-setup.sh --env ADMIN_PASSWORD="$ADMIN_PASSWORD" --env HOST_IP=$HOST_IP
 ```
 
 注意: DevStackのインストールには20〜40分かかる。`conoha server deploy` のタイムアウトに注意する。
