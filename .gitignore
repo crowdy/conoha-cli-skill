@@ -1,0 +1,37 @@
+# Secret files (NEVER commit any of these)
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*credentials*
+!*credentials*.example
+.netrc
+
+# Working memos / handoff notes — keep out of git
+docs/memory/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Build artifacts
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Claude Code local state
+.claude/
+.worktrees/

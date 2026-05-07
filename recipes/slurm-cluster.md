@@ -111,17 +111,21 @@ echo "Common setup complete for $NODE_ROLE"
 conoha server deploy slurm-controller --script slurm-common.sh --env CTRL_IP=$CTRL_IP --env COMP1_IP=$COMP1_IP --env COMP2_IP=$COMP2_IP --env NODE_ROLE=controller
 ```
 
-コントローラーからMungeキーを取得する：
+コントローラーからMungeキーをファイルに取得する。`--env` で平文渡しすると
+プロセスリスト (`ps aux`) と ConoHa API リクエストログに残るため、必ず
+ファイル経由で配布する：
 
 ```bash
-MUNGE_KEY=$(ssh root@$CTRL_IP "base64 /etc/munge/munge.key")
+ssh root@$CTRL_IP "cat /etc/munge/munge.key" > /tmp/munge.key
+chmod 600 /tmp/munge.key
 ```
 
-コンピュートノードで共通セットアップを実行する：
+コンピュートノードで共通セットアップを実行する。Mungeキーは `--upload` で
+スクリプトの外側からファイルとして転送する：
 
 ```bash
-conoha server deploy slurm-compute-1 --script slurm-common.sh --env CTRL_IP=$CTRL_IP --env COMP1_IP=$COMP1_IP --env COMP2_IP=$COMP2_IP --env NODE_ROLE=compute --env MUNGE_KEY_BASE64="$MUNGE_KEY"
-conoha server deploy slurm-compute-2 --script slurm-common.sh --env CTRL_IP=$CTRL_IP --env COMP1_IP=$COMP1_IP --env COMP2_IP=$COMP2_IP --env NODE_ROLE=compute --env MUNGE_KEY_BASE64="$MUNGE_KEY"
+conoha server deploy slurm-compute-1 --script slurm-common.sh --env CTRL_IP=$CTRL_IP --env COMP1_IP=$COMP1_IP --env COMP2_IP=$COMP2_IP --env NODE_ROLE=compute --upload /tmp/munge.key:/etc/munge/munge.key
+conoha server deploy slurm-compute-2 --script slurm-common.sh --env CTRL_IP=$CTRL_IP --env COMP1_IP=$COMP1_IP --env COMP2_IP=$COMP2_IP --env NODE_ROLE=compute --upload /tmp/munge.key:/etc/munge/munge.key
 ```
 
 ### 4. コントローラーセットアップ
@@ -196,7 +200,11 @@ mount $CTRL_IP:/shared /shared
 echo "$CTRL_IP:/shared /shared nfs defaults 0 0" >> /etc/fstab
 
 # コントローラーからslurm.confをコピー
-scp -o StrictHostKeyChecking=no root@$CTRL_IP:/etc/slurm/slurm.conf /etc/slurm/slurm.conf
+# 本番では事前にホスト鍵を /root/.ssh/known_hosts に登録するか、
+# `ssh-keyscan -H $CTRL_IP >> ~/.ssh/known_hosts` を初期化スクリプトで実行する。
+# StrictHostKeyChecking=no は MITM 攻撃の余地を作るため、テスト用途以外では避ける。
+ssh-keyscan -H "$CTRL_IP" >> /root/.ssh/known_hosts
+scp root@$CTRL_IP:/etc/slurm/slurm.conf /etc/slurm/slurm.conf
 
 # slurmd起動
 mkdir -p /var/spool/slurmd
