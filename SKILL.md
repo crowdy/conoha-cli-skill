@@ -25,14 +25,16 @@ Windows（Windows Server 2019等）やCI/CD環境など、TTYが利用できな�
 
 1. **`--no-input` フラグを付与する** — すべてのコマンドにグローバルフラグ `--no-input` を付けることで、対話プロンプトを無効化できる。CI/CDパイプラインでは環境変数 `CONOHA_NO_INPUT=1` を設定する方が便利な場合がある
 2. **必須パラメータをすべてフラグで指定する** — 省略すると対話的プロンプトが発生しエラーになる（例: `interactive selection requires a TTY`）
-3. **`conoha server create` では `--flavor`、`--image`、`--key-name` を必ず指定する**
+3. **`conoha server create` では `--flavor`、`--image`、`--key-name`、`--security-group` を必ず指定する** — `--security-group` は repeatable。最低限 SSH 到達可能な SG を含めること。一般的には `default` + `IPv4v6-SSH` (proxy モードを使うなら `IPv4v6-Web` も追加)。`default` 単独では SSH 22 が届かないケースが多い。SG を省略すると `--no-input` 下で `selection required but --no-input is set` または silent fail (exit 0) になる ([crowdy/conoha-cli#155](https://github.com/crowdy/conoha-cli/issues/155))
 4. **`conoha app` サブコマンドでは `--app-name` を必ず指定する** — 省略するとアプリ名の入力プロンプトが発生する。値は **DNS-1123 ラベル** (小文字英数とハイフン、英数で開始/終了、`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`, 1–63 文字) とすること。例: `my-app` ✅ / `my_app` ❌ / `MyApp` ❌<br>※ 現行 CLI は `app init/deploy` 時に DNS-1123 で値を弾く ([crowdy/conoha-cli#124](https://github.com/crowdy/conoha-cli/pull/124))。旧バージョンで作成された underscore/大文字を含むアプリは `app destroy` で `/opt/conoha/<name>` の作業ディレクトリが残留する既知の不具合があったため ([crowdy/conoha-cli#119](https://github.com/crowdy/conoha-cli/issues/119))、レガシー名のアプリを片付ける場合のみ `app destroy` 後に手動で同パスを確認・削除する
-5. **確認プロンプトが出る破壊的コマンド（`server delete`、`app destroy`、`app stop`）は `--yes` フラグで確認をスキップする**（環境変数: `CONOHA_YES=1`）。`app restart` / `app rollback` は確認プロンプトを出さないため `--yes` は不要 (指定しても no-op)
+5. **確認プロンプトが出るコマンドには `--yes` フラグで確認をスキップする**（環境変数: `CONOHA_YES=1`）。対象は破壊的コマンド (`server delete`、`app destroy`、`app stop`) に加えて **`server create` 自体** — boot volume を新規作成する確認プロンプトが出るため `--yes` がないと `confirmation required but --no-input is set; use --yes to auto-confirm` で失敗する (この時 boot volume は orphan として残るので注意、後述の「在庫切れリトライ」参照)。`app restart` / `app rollback` は確認プロンプトを出さないため `--yes` は不要 (指定しても no-op)
 6. **アプリの既存モードと異なる `--proxy` / `--no-proxy` を指定するとモード不一致エラーで停止する** — 切り替えたい場合は `conoha app destroy --yes` → 反対モードで `init` し直す
 
 ```bash
 # 非TTY環境での例
-conoha server create --name my-server --flavor <ID> --image <ID> --key-name <キー名> --no-input --wait
+conoha server create --name my-server --flavor <ID> --image <ID> --key-name <キー名> \
+  --security-group default --security-group IPv4v6-SSH \
+  --no-input --yes --wait
 conoha app deploy my-server --app-name myapp --no-input
 
 # CI/CDパイプラインでは環境変数でまとめて設定可能
@@ -47,10 +49,14 @@ export CONOHA_YES=1
 | コマンド | 説明 |
 |---------|------|
 | `conoha server list` | サーバー一覧を表示する |
-| `conoha server create --name <名前> --flavor <ID> --image <ID> --key-name <キー名>` | サーバーを作成する |
-| `conoha server create --name <名前> --flavor <ID> --image <ID> --key-name <キー名> --wait` | サーバー作成完了まで待機する |
+| `conoha server create --name <名前> --flavor <ID> --image <ID> --key-name <キー名> --security-group <SG名>` | サーバーを作成する (`--security-group` は repeatable、SSH 用 SG を必ず含める) |
+| `conoha server create ... --volume <既存ボリュームID>` | 既存 boot volume を再利用してサーバーを作成する (`--image` も CLI 上必須なので作成元と同じ ID を渡す) |
+| `conoha server create ... --wait` | サーバー作成完了まで待機する |
 | `conoha server show <ID\|名前>` | サーバー詳細を表示する |
-| `conoha server delete <ID\|名前>` | サーバーを削除する |
+| `conoha server delete <ID\|名前> --yes` | サーバーを削除する (**boot volume は残る** — `volume list` で確認し個別に削除するか、下記 `--delete-boot-volume` を使う) |
+| `conoha server delete <ID\|名前> --delete-boot-volume --yes --wait` | サーバーと boot volume を一括削除する (推奨。残し忘れによる quota 圧迫を防ぐ) |
+| `conoha server add-security-group <ID\|名前> --name <SG名> --yes` (alias `add-sg`) | 既存サーバーに SG を後付けする (SSH 不通時の救済に有効) |
+| `conoha server remove-security-group <ID\|名前> --name <SG名> --yes` (alias `remove-sg`) | サーバーから SG を取り外す |
 | `conoha server deploy <ID\|名前> --script <ファイル> --env KEY=VALUE` | スクリプトをSSH経由で実行する |
 
 ### フレーバー・イメージ
@@ -59,6 +65,14 @@ export CONOHA_YES=1
 |---------|------|
 | `conoha flavor list` | 利用可能なフレーバー一覧を表示する |
 | `conoha image list` | 利用可能なイメージ一覧を表示する |
+
+### ボリューム
+
+| コマンド | 説明 |
+|---------|------|
+| `conoha volume list` | ボリューム一覧を表示する (orphan の boot volume 確認に使う) |
+| `conoha volume show <ID>` | ボリューム詳細を表示する |
+| `conoha volume delete <ID> --yes` | ボリュームを削除する (server delete 時に残った boot volume の救済) |
 
 ### ネットワーク
 
@@ -161,6 +175,56 @@ conoha network sg create --name <クラスター名>-sg
 # 必要なルールを追加（例: SSH + クラスター固有ポート）
 conoha network sgr create --security-group-id <SG-ID> --direction ingress --protocol tcp --port-min 22 --port-max 22 --remote-ip 0.0.0.0/0
 ```
+
+### SSH 到達性を担保する SG attach パターン
+
+`conoha server create --security-group default` だけで作成すると `default` SG のインバウンドが極めて制限的なため SSH (22) すら届かないケースが頻発する。**作成時に必要な SG をすべて attach** するのが基本：
+
+```bash
+conoha server create --name <名前> --flavor <ID> --image <ID> --key-name <キー名> \
+  --security-group default \
+  --security-group IPv4v6-SSH \
+  --security-group IPv4v6-Web \
+  --no-input --yes --wait
+```
+
+既に作成済みで SSH が届かない場合は **VPS を消さずに後付け** で復旧できる：
+
+```bash
+conoha server add-sg <ID|名前> --name IPv4v6-SSH --yes
+conoha server add-sg <ID|名前> --name IPv4v6-Web --yes
+```
+
+### 在庫切れリトライと既存ボリュームの再利用
+
+`conoha server create` は ConoHa3 側で「No compute resource in stock」となった場合に HTTP 500 を返す (特に L4 GPU フレーバーで発生しやすい)。この API は**サーバー作成前に boot volume を先に作る仕様**のため、失敗時には boot volume だけが orphan として残る：
+
+```
+boot volume 3a156cca-... was created but server creation failed.
+You can delete it with: conoha volume delete 3a156cca-...
+API error (HTTP 500): {"code": 500, "error": "No compute resource in stock."}
+```
+
+このボリュームは捨てずに `--volume <既存ボリュームID>` で次のリトライに渡せる：
+
+```bash
+# 在庫が戻ったら、同じ image ID と組み合わせて再試行する
+conoha server create \
+  --name <名前> \
+  --flavor <ID> \
+  --image <作成元と同じ image ID> \
+  --volume <既存ボリュームID> \
+  --key-name <キー名> \
+  --security-group default --security-group IPv4v6-SSH \
+  --no-input --yes --wait
+```
+
+ポイント:
+
+- リトライ毎に新規ボリュームを作る必要がなく、orphan のクリーンアップも不要
+- 同じフレーバーが在庫切れでも、別のフレーバー (例: より大きいプラン) で同じボリュームを再利用してサーバー作成できる場合がある
+- 不要になった orphan は `conoha volume delete <ID> --yes` で個別に削除する
+- L4 flavor は GPU 専用ネットワーク (`ext-gpu-v4v6-*`) に自動割り当てされるため `--network` 指定は不要
 
 ### デプロイスクリプト実行順序
 
