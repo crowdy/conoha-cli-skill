@@ -26,7 +26,7 @@ Windows（Windows Server 2019等）やCI/CD環境など、TTYが利用できな�
 1. **`--no-input` フラグを付与する** — すべてのコマンドにグローバルフラグ `--no-input` を付けることで、対話プロンプトを無効化できる。CI/CDパイプラインでは環境変数 `CONOHA_NO_INPUT=1` を設定する方が便利な場合がある
 2. **必須パラメータをすべてフラグで指定する** — 省略すると対話的プロンプトが発生しエラーになる（例: `interactive selection requires a TTY`）
 3. **`conoha server create` では `--flavor`、`--image`、`--key-name` を必ず指定する**
-4. **`conoha app` サブコマンドでは `--app-name` を必ず指定する** — 省略するとアプリ名の入力プロンプトが発生する。値は **DNS-1123 ラベル** (`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`, 1–63 文字) とすること。例: `my-app` ✅ / `my_app` ❌ / `MyApp` ❌<br>※ アンダースコアや大文字を含むと `app init/deploy` と `app destroy` の間でパス解決が食い違い、サーバー側の作業ディレクトリが `/opt/conoha/<name>` に残留する ([crowdy/conoha-cli#119](https://github.com/crowdy/conoha-cli/issues/119))
+4. **`conoha app` サブコマンドでは `--app-name` を必ず指定する** — 省略するとアプリ名の入力プロンプトが発生する。値は **DNS-1123 ラベル** (小文字英数とハイフン、英数で開始/終了、`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`, 1–63 文字) とすること。例: `my-app` ✅ / `my_app` ❌ / `MyApp` ❌<br>※ 現行 CLI は `app init/deploy` 時に DNS-1123 で値を弾く ([crowdy/conoha-cli#124](https://github.com/crowdy/conoha-cli/pull/124))。旧バージョンで作成された underscore/大文字を含むアプリは `app destroy` で `/opt/conoha/<name>` の作業ディレクトリが残留する既知の不具合があったため ([crowdy/conoha-cli#119](https://github.com/crowdy/conoha-cli/issues/119))、レガシー名のアプリを片付ける場合のみ `app destroy` 後に手動で同パスを確認・削除する
 5. **確認プロンプトが出る破壊的コマンド（`server delete`、`app destroy`、`app stop`）は `--yes` フラグで確認をスキップする**（環境変数: `CONOHA_YES=1`）。`app restart` / `app rollback` は確認プロンプトを出さないため `--yes` は不要 (指定しても no-op)
 6. **アプリの既存モードと異なる `--proxy` / `--no-proxy` を指定するとモード不一致エラーで停止する** — 切り替えたい場合は `conoha app destroy --yes` → 反対モードで `init` し直す
 
