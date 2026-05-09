@@ -188,4 +188,4 @@ conoha app init my-app-server --app-name myapp --no-proxy   # または --proxy 
 | `docker compose up` が失敗 | `conoha app logs` でエラー確認 |
 | ポートにアクセス不可 (no-proxy) | セキュリティグループで `docker-compose.yml` の `ports` が開放されているか確認 |
 | Let's Encrypt 発行失敗 (proxy) | DNS A レコードが VPS を指しているか、ポート 80 が到達可能かを確認 |
-| デプロイが遅い | `.dockerignore` で `node_modules` 等を除外 |
+| デプロイが遅い / `Warning: skipping symlink frontend/node_modules/.bin/...` が大量に出る | `conoha app deploy` のアーカイブは `.git/` のみ除外 — `node_modules/` (Node) や `.next/`、`__pycache__/`、`venv/` 等はそのままアップロードされる。デプロイ前に `rm -rf node_modules .next` するか、ビルド成果物を含まないクリーンチェックアウトから走らせる。**`.dockerignore` は Docker ビルドコンテキストには効くがアーカイブ自体には影響しない** ことに注意 |
