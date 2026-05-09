@@ -140,6 +140,7 @@ export CONOHA_YES=1
 | Slurmクラスター | HPCジョブスケジューラクラスター | [recipes/slurm-cluster.md](recipes/slurm-cluster.md) |
 | FigmaデザインからWebアプリ | FigmaデザインからReactコード生成・デプロイ | [recipes/figma-to-deploy.md](recipes/figma-to-deploy.md) |
 | リリーススモーク | post-merge / pre-tag の e2e 検証 (実 VPS) | [recipes/release-smoke.md](recipes/release-smoke.md) |
+| Issue 最小再現 | ユーザー報告バグの再現と診断ログ収集 | [recipes/issue-repro.md](recipes/issue-repro.md) |
 
 ## イメージ別 known-issues
 
