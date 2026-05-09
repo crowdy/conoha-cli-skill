@@ -100,6 +100,7 @@ export CONOHA_YES=1
 | `conoha app stop <server> --app-name <app>` | コンテナを停止 |
 | `conoha app restart <server> --app-name <app>` | コンテナを再起動 |
 | `conoha app destroy <server> --app-name <app> --yes` | アプリをサーバーから完全削除 (非対話) |
+| `conoha app reset <server> --app-name <app> --yes` | `destroy` + `init` + `deploy` を 1 SSH セッションで連続実行 (再デプロイ用、v0.5.6 以降)。`app env set` で投入した値は `destroy` で消えるため、必要なら直前に export して再投入する |
 | `conoha app list <server>` | サーバー上のデプロイ済みアプリ一覧 |
 | `conoha app env set <server> --app-name <app> KEY=VALUE` | サーバー側永続環境変数を設定 |
 | `conoha app env list/get/unset` | 環境変数の一覧・取得・削除 |
